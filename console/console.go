@@ -33,7 +33,7 @@ func exit() {
 	os.Exit(0)
 }
 
-func swithCommand(command string) {
+func switchCommand(command string) {
 	commands := strings.Fields(command)
 	command = commands[0]
 	description := ""
@@ -90,7 +90,7 @@ func swithCommand(command string) {
 		if err != nil {
 			log.Fatal(fmt.Errorf("failed incorrect id"))
 		}
-		err = task.MarkProgressTask(id)
+		err = task.MarkTask(id, "in-progress")
 		if err != nil {
 			log.Fatal(fmt.Errorf("failed makr done - %w", err))
 		}
@@ -99,25 +99,10 @@ func swithCommand(command string) {
 		if err != nil {
 			log.Fatal(fmt.Errorf("failed incorrect id"))
 		}
-		err = task.MarkDoneTask(id)
+		err = task.MarkTask(id, "done")
 		if err != nil {
 			log.Fatal(fmt.Errorf("failed mark done - %w", err))
 		}
-	// case "list done":
-	// 	err := task.ListByStatus(description)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// case "list todo":
-	// 	err := task.ListByStatus(description)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// case "list in-progress":
-	// 	err := task.ListByStatus(description)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
 	default:
 		fmt.Println("wrong input, try command \"help\"")
 		fmt.Println()
@@ -129,7 +114,7 @@ func usetInput() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	if scanner.Scan() {
-		swithCommand(scanner.Text())
+		switchCommand(scanner.Text())
 	}
 }
 

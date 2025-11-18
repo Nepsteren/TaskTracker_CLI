@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-var id = 1
-
 type Tasks struct {
 	Id          int    `json:"id"`
 	Description string `json:"description"`
@@ -27,103 +25,33 @@ func getNextId(tasks []Tasks) int {
 	return maxId + 1
 }
 
-func loadTasks() ([]Tasks, error) {
-	data, err := os.ReadFile("tasks.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	var tasks []Tasks
-	err = json.Unmarshal(data, &tasks)
-	return tasks, nil
+func withTaskById(id int, operation func(task *Tasks) error) error {
+	return withTask(func(tasks *[]Tasks) error {
+		for i := range *tasks {
+			if (*tasks)[i].Id == id {
+				return operation(&(*tasks)[i])
+			}
+		}
+		return fmt.Errorf("task with ID %d not found", id)
+	})
 }
 
-func AddTask(description string) error {
-	_, err := os.Stat("tasks.json")
-	if os.IsNotExist(err) {
-		os.Create("tasks.json")
-		id = 0
-	}
-
-	tasks, err := loadTasks()
-	if err != nil {
-		return fmt.Errorf("failed to load tasks %w", err)
-	}
-
-	task := Tasks{Id: getNextId(tasks),
-		Description: description,
-		Status:      "todo",
-		CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
-		UpdatedAt:   "",
-	}
-
-	tasks = append(tasks, task)
-
-	err = MarshalJson(tasks)
-	if err != nil {
-		return fmt.Errorf("failed to marshal - %w", err)
-	}
-	fmt.Println()
-	return nil
-}
-
-func ListTask() error {
-	tasks, err := loadTasks()
-	if err != nil {
-		return fmt.Errorf("failed to load tasks %w", err)
-	}
-	for _, task := range tasks {
-		fmt.Println(task)
-	}
-	fmt.Println()
-	return nil
-}
-
-func DeleteTask(idT int) error {
-	tasks, err := loadTasks()
-	if err != nil {
-		return fmt.Errorf("failed to load tasks %w", err)
-	}
-
-	for i := range tasks {
-		if tasks[i].Id == idT {
-			tasks = append(tasks[:i], tasks[i+1:]...)
-			break
+func withTask(operation func(task *[]Tasks) error) error {
+	if _, err := os.Stat("tasks.json"); os.IsNotExist(err) {
+		if err := os.WriteFile("tasks.json", []byte("[]"), 0644); err != nil {
+			return fmt.Errorf("failed to create tasks file: %w", err)
 		}
 	}
-	err = MarshalJson(tasks)
-	if err != nil {
-		return fmt.Errorf("failed to marshal - %w", err)
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func UpdateTask(id int, description string) error {
 	tasks, err := loadTasks()
 	if err != nil {
-		return fmt.Errorf("failed load file tasks - %w", err)
+		return err
 	}
 
-	if id > len(tasks) {
-		return fmt.Errorf("incorrect id - %w", err)
+	if err := operation(&tasks); err != nil {
+		return err
 	}
 
-	for i := range tasks {
-		if tasks[i].Id == id {
-			tasks[i].Description = description
-			tasks[i].UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
-			break
-		}
-	}
-
-	err = MarshalJson(tasks)
-	if err != nil {
-		return fmt.Errorf("failed to marshal - %w", err)
-	}
-	fmt.Println()
-	return nil
+	return MarshalJson(tasks)
 }
 
 func MarshalJson(tasks []Tasks) error {
@@ -138,63 +66,80 @@ func MarshalJson(tasks []Tasks) error {
 	return nil
 }
 
-func MarkProgressTask(id int) error {
-	tasks, err := loadTasks()
+func loadTasks() ([]Tasks, error) {
+	data, err := os.ReadFile("tasks.json")
 	if err != nil {
-		return fmt.Errorf("failed to load tasks - %w", err)
-	}
-	if id > len(tasks) {
-		return fmt.Errorf("failed incorrect id - %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	for i := range tasks {
-		if tasks[i].Id == id {
-			tasks[i].Status = "in-progress"
-			break
-		}
-	}
-	err = MarshalJson(tasks)
+	var tasks []Tasks
+	err = json.Unmarshal(data, &tasks)
 	if err != nil {
-		return fmt.Errorf("failed to marshal %w", err)
+		return nil, fmt.Errorf("failed to unmarshal - %w", err)
 	}
-	fmt.Println()
-	return nil
+	return tasks, nil
 }
 
-func MarkDoneTask(id int) error {
-	tasks, err := loadTasks()
-	if err != nil {
-		return fmt.Errorf("failed to load tasks - %w", err)
+func AddTask(description string) error {
+	if description == "" {
+		return fmt.Errorf("task description cannot be empty")
 	}
-
-	for i := range tasks {
-		if tasks[i].Id == id {
-			tasks[i].Status = "done"
-			break
+	return withTask(func(tasks *[]Tasks) error {
+		task := Tasks{Id: getNextId(*tasks),
+			Description: description,
+			Status:      "todo",
+			CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
+			UpdatedAt:   "",
 		}
-	}
-	err = MarshalJson(tasks)
-	if err != nil {
-		return fmt.Errorf("failed to marshal %w", err)
-	}
-	fmt.Println()
-	return nil
+		*tasks = append(*tasks, task)
+		return nil
+	})
+}
+
+func ListTask() error {
+	return withTask(func(tasks *[]Tasks) error {
+		for _, task := range *tasks {
+			fmt.Println(task)
+		}
+		return nil
+	})
+}
+
+func DeleteTask(id int) error {
+	return withTask(func(tasks *[]Tasks) error {
+		for i := 0; i < len(*tasks); i++ {
+			if (*tasks)[i].Id == id {
+				*tasks = append((*tasks)[:i], (*tasks)[i+1:]...)
+				return nil
+			}
+		}
+		return fmt.Errorf("task with ID %d not found", id)
+	})
+}
+
+func UpdateTask(id int, description string) error {
+	return withTaskById(id, func(task *Tasks) error {
+		task.Description = description
+		task.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+		return nil
+	})
+}
+
+func MarkTask(id int, status string) error {
+	return withTaskById(id, func(task *Tasks) error {
+		task.Status = status
+		task.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+		return nil
+	})
 }
 
 func ListByStatus(status string) error {
-	tasks, err := loadTasks()
-	if err != nil {
-		return fmt.Errorf("failed to load tasks - %w", err)
-	}
-
-	if status != "done" && status != "todo" && status != "in-progress" {
-		return fmt.Errorf("incorrect input: `%s", status)
-	}
-	for i := range tasks {
-		if tasks[i].Status == status {
-			fmt.Println(tasks[i])
+	return withTask(func(tasks *[]Tasks) error {
+		for _, task := range *tasks {
+			if task.Status == status {
+				fmt.Println(task)
+			}
 		}
-	}
-	fmt.Println()
-	return nil
+		return nil
+	})
 }
