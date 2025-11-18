@@ -3,9 +3,11 @@ package console
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"strings"
-	task "taskTracker/Task"
+	task "taskTracker/task"
 )
 
 func meeting() {
@@ -14,6 +16,7 @@ func meeting() {
 }
 
 func help() {
+	fmt.Println("command 'exit' - exit programm")
 	fmt.Println("command 'add' \"something\" - add task")
 	fmt.Println("command 'update' \"1 something and anything\" - update task")
 	fmt.Println("command 'delete' \"1\" - delete task")
@@ -26,44 +29,95 @@ func help() {
 	fmt.Println()
 }
 
-func add(description string) {
-	task.CreateTask(description)
+func exit() {
+	os.Exit(0)
 }
 
 func swithCommand(command string) {
 	commands := strings.Fields(command)
 	command = commands[0]
+	description := ""
+	if len(commands) >= 2 {
+		description = commands[1]
+	}
+	if len(commands) >= 3 {
+		description = strings.Join(commands[2:], " ")
+	}
+
+	if commands[0] == "list" && len(commands) >= 2 {
+		status := commands[1]
+		if status == "done" || status == "todo" || status == "in-progress" {
+			task.ListByStatus(status)
+			return
+		}
+	}
 
 	switch command {
 	case "help":
 		help()
 	case "list":
-		fmt.Println("some list")
-		fmt.Println()
+		err := task.ListTask()
+		if err != nil {
+			log.Fatal(err)
+		}
 	case "add":
-		description := commands[1]
-		add(description)
+		err := task.AddTask(description)
+		if err != nil {
+			log.Fatal(err)
+		}
 	case "delete":
-		fmt.Println("some delete")
-		fmt.Println()
+		if len(commands) > 2 {
+			log.Fatal(fmt.Errorf("failed too much argumentsS"))
+		}
+		id, err := strconv.Atoi(commands[1])
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed incorrect id"))
+		}
+		err = task.DeleteTask(id)
+		if err != nil {
+			log.Fatal(err)
+		}
+	case "exit":
+		exit()
 	case "update":
-		fmt.Println("update something")
-		fmt.Println()
+		id, err := strconv.Atoi(commands[1])
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed incorrect input - %w", err))
+		}
+		task.UpdateTask(id, description)
 	case "mark-in-progress":
-		fmt.Println("some delete")
-		fmt.Println()
+		id, err := strconv.Atoi(commands[1])
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed incorrect id"))
+		}
+		err = task.MarkProgressTask(id)
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed makr done - %w", err))
+		}
 	case "mark-done":
-		fmt.Println("some delete")
-		fmt.Println()
-	case "list done":
-		fmt.Println("some done list")
-		fmt.Println()
-	case "list todo":
-		fmt.Println("some not done list")
-		fmt.Println()
-	case "list in-progress":
-		fmt.Println("some progress list")
-		fmt.Println()
+		id, err := strconv.Atoi(commands[1])
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed incorrect id"))
+		}
+		err = task.MarkDoneTask(id)
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed mark done - %w", err))
+		}
+	// case "list done":
+	// 	err := task.ListByStatus(description)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// case "list todo":
+	// 	err := task.ListByStatus(description)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// case "list in-progress":
+	// 	err := task.ListByStatus(description)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 	default:
 		fmt.Println("wrong input, try command \"help\"")
 		fmt.Println()
