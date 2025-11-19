@@ -1,6 +1,8 @@
 package main
 
-import "taskTracker/console"
+import (
+	"taskTracker/console"
+)
 
 func main() {
 	console.Start()
